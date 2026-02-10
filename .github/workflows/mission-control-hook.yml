@@ -1,0 +1,29 @@
+name: Mission Control Hook Bridge
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "data/tasks.json"
+      - "data/crons.json"
+      - "data/version.json"
+      - "index.html"
+      - ".github/workflows/mission-control-hook.yml"
+
+jobs:
+  notify-openclaw:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send push payload to OpenClaw hook
+        env:
+          HOOK_URL: ${{ secrets.OPENCLAW_HOOK_URL }}
+          HOOK_TOKEN: ${{ secrets.OPENCLAW_HOOK_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$HOOK_URL"
+          test -n "$HOOK_TOKEN"
+          curl -sS -X POST "$HOOK_URL" \
+            -H "Authorization: Bearer $HOOK_TOKEN" \
+            -H "Content-Type: application/json" \
+            -H "X-GitHub-Event: push" \
+            --data-binary @"$GITHUB_EVENT_PATH"
