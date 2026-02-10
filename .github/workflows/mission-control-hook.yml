@@ -14,16 +14,46 @@ jobs:
   notify-openclaw:
     runs-on: ubuntu-latest
     steps:
-      - name: Send push payload to OpenClaw hook
+      - name: Build enriched push payload + send to OpenClaw
         env:
           HOOK_URL: ${{ secrets.OPENCLAW_HOOK_URL }}
           HOOK_TOKEN: ${{ secrets.OPENCLAW_HOOK_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           test -n "$HOOK_URL"
           test -n "$HOOK_TOKEN"
+
+          BEFORE=$(jq -r '.before // empty' "$GITHUB_EVENT_PATH")
+          AFTER=$(jq -r '.after // empty' "$GITHUB_EVENT_PATH")
+          REPO_FULL=$(jq -r '.repository.full_name' "$GITHUB_EVENT_PATH")
+
+          if [ -n "$BEFORE" ] && [ -n "$AFTER" ] && [ -n "$REPO_FULL" ]; then
+            FILES_JSON=$(curl -sS \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$REPO_FULL/compare/$BEFORE...$AFTER" \
+              | jq -c '[.files[]?.filename]')
+          else
+            FILES_JSON='[]'
+          fi
+
+          jq --argjson files "$FILES_JSON" '
+            . as $orig
+            | .commits = ((.commits // []) + [{
+                id: (.after // ""),
+                modified: ($files // []),
+                added: [],
+                removed: []
+              }])
+            | .head_commit = ((.head_commit // {}) + {
+                id: (.after // ""),
+                modified: ($files // [])
+              })
+          ' "$GITHUB_EVENT_PATH" > /tmp/openclaw-push-payload.json
+
           curl -sS -X POST "$HOOK_URL" \
             -H "Authorization: Bearer $HOOK_TOKEN" \
             -H "Content-Type: application/json" \
             -H "X-GitHub-Event: push" \
-            --data-binary @"$GITHUB_EVENT_PATH"
+            --data-binary @/tmp/openclaw-push-payload.json
