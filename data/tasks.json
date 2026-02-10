@@ -311,5 +311,6 @@
   "lastUpdated": "2026-01-01T00:00:00Z",
   "_lastTest": "2026-02-10T02:42:00+03:00",
   "_healthcheckTestTs": 1770681606.8111942,
-  "_bridgeTestTs": 1770681773.180885
+  "_bridgeTestTs": 1770681773.180885,
+  "_bridgeTestTs2": 1770681817.110264
 }
